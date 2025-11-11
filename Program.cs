@@ -17,6 +17,8 @@ builder.Services.AddDbContext<WebApiDbContext>(options =>
         options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
     );
 
+builder.Services.AddScoped(typeof(IEntityBaseRepository<>), typeof(EntityBaseRepository<>));
+
 var app = builder.Build();
 
 
@@ -33,30 +35,43 @@ app.UseSwaggerUI();
 
 
 
-app.MapGet("/rubrica", (WebApiDbContext dbContext) =>
+app.MapGet("/rubrica", (IEntityBaseRepository<PersonaEntity> repository) =>
 {
-    return dbContext.Persone
-        .Include(p=>p.ListIndirizzi)
-        .ThenInclude(i=>i.LinkCitta).ToList();
+    // return dbContext.Persone
+    //     .Include(p=>p.ListIndirizzi)
+    //     .ThenInclude(i=>i.LinkCitta).ToList();
+
+    return repository.All
+       .Include(p => p.ListIndirizzi)
+       .ThenInclude(i => i.LinkCitta).ToList();
 })
 .WithName("Rubrica");
 
-app.MapGet("/rubrica/{id}", (WebApiDbContext dbContext, int id) =>
+app.MapGet("/indirizzi", (IEntityBaseRepository<IndirizzoEntity> repository) =>
 {
-    return dbContext.Persone.SingleOrDefault(p => p.Id == id);
+    return repository.All.Select(i => i.LinkCitta.Nome)
+        
+        .Distinct().OrderBy(x=>x).ToList();
+});
+
+app.MapGet("/rubrica/{id}", (IEntityBaseRepository<PersonaEntity> repository, int id) =>
+{
+    //return repository.GetSingle(id);
+    return repository.AllIncluding(p => p.ListIndirizzi)
+        .Select(x=> new { via = x.ListIndirizzi.First().Via, x.Id }).FirstOrDefault(x => x.Id == id);
 })
 .WithName("Elemento rubrica");
 
-app.MapGet("/rubrica/by/nome/{nome}", (WebApiDbContext dbContext, string nome) =>
+app.MapGet("/rubrica/by/nome/{nome}", (IEntityBaseRepository<PersonaEntity> repository, string nome) =>
 {
-    return dbContext.Persone
+    return repository.All
         .OrderByDescending(p=>p.Cognome)
         .Where(p => p.Nome.Contains(nome))
         .ToList();
 })
 .WithName("Elemento rubrica by nome");
 
-app.MapPost("/rubrica", (PersonaDTO nuovaPersonaReq, WebApiDbContext dbContext) =>
+app.MapPost("/rubrica", (PersonaDTO nuovaPersonaReq, IEntityBaseRepository<PersonaEntity> repository) =>
 {
     PersonaEntity nuovaPersonaEntity = new PersonaEntity();
     nuovaPersonaEntity.Cognome = nuovaPersonaReq.cognome;
@@ -64,17 +79,19 @@ app.MapPost("/rubrica", (PersonaDTO nuovaPersonaReq, WebApiDbContext dbContext) 
     nuovaPersonaEntity.Telefono = nuovaPersonaReq.telefono;
 
 
-    dbContext.Persone.Add(nuovaPersonaEntity);
-    dbContext.SaveChanges();
+    repository.Add(nuovaPersonaEntity);
+    repository.SaveChanges();
 
     return Results.Created();
 });
 
-app.MapPut("/rubrica/{id}", (int id, PersonaDTO personaDtoReq, WebApiDbContext dbContext) =>
+app.MapPut("/rubrica/{id}", (int id, PersonaDTO personaDtoReq,
+    IEntityBaseRepository<PersonaEntity> personaRepository,
+    IEntityBaseRepository<CittaEntity> cittaRepository) =>
 {
 
     
-    var personaEntity = dbContext.Persone
+    var personaEntity = personaRepository.All
         .Include(p=>p.ListIndirizzi)
         .ThenInclude(i=>i.LinkCitta)
         .FirstOrDefault(p => p.Id == id);
@@ -95,10 +112,10 @@ app.MapPut("/rubrica/{id}", (int id, PersonaDTO personaDtoReq, WebApiDbContext d
             ie.Default = false;
             ie.Via = personaDtoReq.via;
 
-            bool existCitta = dbContext.Citta.Any(c => c.Nome == personaDtoReq.nomeCitta && c.Cap == personaDtoReq.cap);
+            bool existCitta = cittaRepository.All.Any(c => c.Nome == personaDtoReq.nomeCitta && c.Cap == personaDtoReq.cap);
             if (existCitta)
             {
-                ie.LinkCitta = dbContext.Citta.First(c => c.Nome == personaDtoReq.nomeCitta && c.Cap == personaDtoReq.cap);
+                ie.LinkCitta = cittaRepository.All.First(c => c.Nome == personaDtoReq.nomeCitta && c.Cap == personaDtoReq.cap);
 
             }
             else
@@ -122,15 +139,16 @@ app.MapPut("/rubrica/{id}", (int id, PersonaDTO personaDtoReq, WebApiDbContext d
 
         }
 
-        dbContext.SaveChanges();
-        return Results.Ok( dbContext.Persone.ToList());
+        personaRepository.SaveChanges();
+        return Results.Ok( personaRepository.All.ToList());
     }
     
 });
 
-app.MapDelete("/rubrica/{id}", (int id, WebApiDbContext dbContext) =>
+app.MapDelete("/rubrica/{id}", (int id, IEntityBaseRepository<PersonaEntity> personeRepository) =>
 {
-    var elemento = dbContext.Persone.FirstOrDefault(p => p.Id == id);
+    var elemento = personeRepository.AllIncluding(x=>x.ListIndirizzi)
+        .FirstOrDefault(p => p.Id == id);
     //var elemento = elementiRubrica.FirstOrDefault(r => r.id == id);
     if (elemento == null)
     {
@@ -138,12 +156,12 @@ app.MapDelete("/rubrica/{id}", (int id, WebApiDbContext dbContext) =>
     }
     else
     {
-        dbContext.Persone.Remove(elemento);
-        dbContext.SaveChanges();
+        personeRepository.Delete(elemento);
+        personeRepository.SaveChanges();
 
 
     }
-    return Results.Ok(dbContext.Persone.ToList());
+    return Results.Ok(personeRepository.All.ToList());
 });
 
 

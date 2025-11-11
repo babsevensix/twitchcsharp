@@ -1,0 +1,39 @@
+
+using Microsoft.EntityFrameworkCore;
+
+
+public class WebApiDbContext : DbContext
+{
+    public WebApiDbContext(DbContextOptions<WebApiDbContext> options): base(options)
+    {
+
+    }
+    
+    // public DbSet<PersonaEntity> Persone { get; set; }
+
+    // public DbSet<CittaEntity> Citta { get; set; }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<PersonaEntity>().ToTable("Persone");
+        modelBuilder.Entity<PersonaEntity>().HasKey(x => x.Id);
+        modelBuilder.Entity<PersonaEntity>().Property(x => x.Id).ValueGeneratedOnAdd();
+        modelBuilder.Entity<PersonaEntity>().HasMany(pe => pe.ListIndirizzi).WithOne().OnDelete(DeleteBehavior.ClientCascade);
+
+        modelBuilder.Entity<CittaEntity>().ToTable("Citta");
+        modelBuilder.Entity<CittaEntity>().HasKey(x => x.Id);
+        modelBuilder.Entity<CittaEntity>().Property(x => x.Id).ValueGeneratedOnAdd();
+
+
+        modelBuilder.Entity<IndirizzoEntity>().ToTable("IndirizzoEntity");
+        modelBuilder.Entity<IndirizzoEntity>().HasKey(x => x.Id);
+        modelBuilder.Entity<IndirizzoEntity>().Property(x => x.Id).ValueGeneratedOnAdd();
+        modelBuilder.Entity<IndirizzoEntity>().HasOne(x => x.LinkCitta)
+            .WithMany()
+            .HasForeignKey(i=>i.LinkCittaId);
+
+
+    }
+}
