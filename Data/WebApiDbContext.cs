@@ -11,7 +11,7 @@ public class WebApiDbContext : DbContext
     
     // public DbSet<PersonaEntity> Persone { get; set; }
 
-    // public DbSet<CittaEntity> Citta { get; set; }
+    public DbSet<CittaEntity> Citta { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
