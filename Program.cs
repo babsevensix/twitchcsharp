@@ -5,6 +5,9 @@ using MapsterMapper;
 using Mapster;
 using System.Reflection;
 using Microsoft.AspNetCore.Http.HttpResults;
+using System.ComponentModel.DataAnnotations;
+using FluentValidation;
+using SharpGrip.FluentValidation.AutoValidation.Endpoints.Extensions;
 
 
 
@@ -28,6 +31,16 @@ builder.Services.AddDbContext<WebApiDbContext>(options =>
 builder.Services.AddScoped(typeof(IEntityBaseRepository<>), typeof(EntityBaseRepository<>));
 
 builder.Services.AddMapsterConfiguration();
+
+
+//builder.Services.AddScoped<IValidator<RequestPersonaDTO>, RequestPersonaDTOValidator>();
+builder.Services.AddValidatorsFromAssemblyContaining<RequestPersonaDTOValidator>();
+builder.Services.AddFluentValidationAutoValidation((cfg) =>
+{
+    cfg.OverrideDefaultResultFactoryWith<CustomResultFactory>();
+});
+
+
 
 
 
@@ -117,11 +130,13 @@ app.MapGet("/rubrica/by/nome/{nome}", (IEntityBaseRepository<PersonaEntity> repo
 })
 .WithName("Elemento rubrica by nome");
 
-app.MapPost("/rubrica", (RequestPersonaDTO nuovaPersonaReq,
+app.MapPost("/rubrica", (
+        RequestPersonaDTO nuovaPersonaReq,
         IEntityBaseRepository<PersonaEntity> repository,
         IMapper mapper
         ) =>
 {
+
 
     
     PersonaEntity nuovaPersonaEntity = mapper.Map<PersonaEntity>(nuovaPersonaReq);
@@ -131,7 +146,13 @@ app.MapPost("/rubrica", (RequestPersonaDTO nuovaPersonaReq,
     repository.SaveChanges();
 
     return Results.Created();
-});
+    
+}).AddFluentValidationAutoValidation();
+
+
+
+
+
 
 /*
 app.MapPut("/rubrica/{id}", (int id, PersonaDTO personaDtoReq,
